@@ -1,0 +1,16 @@
+# Ignore environment files with real credentials
+.env
+backend/.env
+
+# Lock file (indicates running process)
+pos.lock
+
+# Windows system files
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+node_modules
