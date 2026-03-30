@@ -1,0 +1,108 @@
+;
+;	Printer Installation File
+;
+;	 List of supported printers, manufacturers
+;
+
+[Version]
+Signature="$Windows NT$"
+Provider=%POS%
+ClassGUID={4D36E979-E325-11CE-BFC1-08002BE10318}
+Class=Printer
+
+;
+; Manufacturer section.
+;
+; This section lists all of the manufacturers
+; that we will display in the Dialog box
+;
+
+[Manufacturer]
+"POS"=POS, NTamd64
+
+;
+; Model Specifications Section
+;
+
+[POS]
+"POS-58"     = P58.GPD
+"POS-58C"    = P58C.GPD
+"POS-80"     = P80.GPD
+"POS-80C"    = P80C.GPD
+"POS-76"     = P76.GPD
+"POS-76C"    = P76C.GPD
+
+[POS.NTamd64]
+"POS-58"     = P58.GPD
+"POS-58C"    = P58C.GPD
+"POS-80"     = P80.GPD
+"POS-80C"    = P80C.GPD
+"POS-76"     = P76.GPD
+"POS-76C"    = P76C.GPD
+
+;
+; Installer section(s) referenced above.
+;
+
+[P58.GPD]
+CopyFiles=@P58.DLL,@P58.GPD
+DataSection=UNIDRV_DATA
+DataFile=P58.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[P58C.GPD]
+CopyFiles=@P58.DLL,@POS58C.GPD
+DataSection=UNIDRV_DATA
+DataFile=POS58C.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[P80.GPD]
+CopyFiles=@P80.DLL,@P80.GPD
+DataSection=UNIDRV_DATA
+DataFile=P80.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[P80C.GPD]
+CopyFiles=@P80.DLL,@P80C.GPD
+DataSection=UNIDRV_DATA
+DataFile=P80C.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[P76.GPD]
+CopyFiles=@P76.DLL,@P76.GPD
+DataSection=UNIDRV_DATA
+DataFile=P76.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[P76C.GPD]
+CopyFiles=@P76.DLL,@P76C.GPD
+DataSection=UNIDRV_DATA
+DataFile=P76C.GPD
+Include=NTPRINT.INF
+Needs=UNIDRV.OEM
+
+[DestinationDirs]
+DefaultDestDir=66000
+
+[SourceDisksNames.amd64]
+1 = %disk1%,,,
+
+[SourceDisksFiles]
+P58.DLL     = 1
+P80.DLL     = 1
+P76.DLL     = 1
+P58.GPD     = 1
+P58C.GPD    = 1
+P80.GPD     = 1
+P80C.GPD    = 1
+P76.GPD     = 1
+P76C.GPD    = 1
+
+[Strings]
+PrinterClassName="Printers"
+disk1="POS Printer Driver Setup Disk"
