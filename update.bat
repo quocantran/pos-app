@@ -155,16 +155,7 @@ echo Previous version: %OLD_VERSION%
 echo Current version:  !NEW_VERSION!
 echo.
 
-REM Ask to restart
+REM Auto restart after update
+echo Starting POS system...
 echo.
-set /p RESTART="Start POS system now? (Y/N): "
-if /i "%RESTART%"=="Y" (
-    echo.
-    echo Starting POS system...
-    call "%SCRIPT_DIR%start.bat"
-) else (
-    echo.
-    echo To start later, double-click start.bat
-    echo.
-    pause
-)
+call "%SCRIPT_DIR%start.bat"
