@@ -46,7 +46,7 @@ class OrderService {
           include: [{
             model: Variant,
             as: 'variant',
-            attributes: ['id', 'sku', 'barcode', 'size', 'color'],
+            attributes: ['id', 'sku', 'barcode', 'size', 'color', 'cost_price'],
             include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }]
           }]
         }
@@ -78,7 +78,7 @@ class OrderService {
           include: [{
             model: Variant,
             as: 'variant',
-            attributes: ['id', 'sku', 'barcode', 'size', 'color', 'price'],
+            attributes: ['id', 'sku', 'barcode', 'size', 'color', 'price', 'cost_price'],
             include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }]
           }]
         }
@@ -344,28 +344,71 @@ class OrderService {
   async getReceipt(orderId) {
     const order = await this.getById(orderId);
 
+    // Get refund history for this order
+    const refunds = await Refund.findAll({
+      where: { order_id: orderId },
+      include: [{
+        model: RefundItem,
+        as: 'items',
+        include: [{
+          model: Variant,
+          as: 'variant',
+          attributes: ['id', 'sku', 'size', 'color'],
+          include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }]
+        }]
+      },
+      { model: User, as: 'createdByUser', attributes: ['id', 'full_name'] }
+      ],
+      order: [['created_at', 'DESC']]
+    });
+
+    const totalRefunded = refunds.reduce((sum, r) => sum + parseFloat(r.refund_amount), 0);
+
     return {
       order_code: order.order_code,
       created_at: order.created_at,
       cashier: order.createdByUser?.full_name || 'N/A',
       customer_name: order.customer_name || 'Khách lẻ',
       customer_phone: order.customer_phone || '',
+      status: order.status,
       items: order.items.map(item => ({
         name: item.variant?.product?.name || 'N/A',
         sku: item.variant?.sku || 'N/A',
         size: item.variant?.size || '',
         color: item.variant?.color || '',
         quantity: item.quantity,
+        returned_quantity: item.returned_quantity || 0,
+        actual_quantity: item.quantity - (item.returned_quantity || 0),
         unit_price: parseFloat(item.unit_price),
         discount: parseFloat(item.discount_amount),
-        total: parseFloat(item.total)
+        total: parseFloat(item.total),
+        actual_total: parseFloat(item.unit_price) * (item.quantity - (item.returned_quantity || 0))
       })),
       subtotal: parseFloat(order.subtotal),
       discount_amount: parseFloat(order.discount_amount),
       discount_percent: parseFloat(order.discount_percent),
       total: parseFloat(order.total),
+      total_refunded: totalRefunded,
+      final_total: parseFloat(order.total) - totalRefunded,
       payment_method: order.payment_method,
-      note: order.note
+      note: order.note,
+      refunds: refunds.map(r => ({
+        refund_code: r.refund_code,
+        refund_amount: parseFloat(r.refund_amount),
+        refund_type: r.refund_type,
+        reason: r.reason,
+        created_at: r.created_at,
+        created_by: r.createdByUser?.full_name || 'N/A',
+        items: r.items.map(ri => ({
+          name: ri.variant?.product?.name || 'N/A',
+          sku: ri.variant?.sku || 'N/A',
+          size: ri.variant?.size || '',
+          color: ri.variant?.color || '',
+          quantity: ri.quantity,
+          unit_price: parseFloat(ri.unit_price),
+          refund_amount: parseFloat(ri.refund_amount)
+        }))
+      }))
     };
   }
 

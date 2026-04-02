@@ -12,7 +12,7 @@ router.get('/me', auth, authController.getProfile);
 router.put('/profile', auth, authController.updateProfile);
 router.put('/change-password', auth, authController.changePassword);
 
-// Admin only routes
-router.post('/register', auth, roleCheck('ADMIN'), authController.register);
+// Public registration
+router.post('/register', authController.register);
 
 module.exports = router;

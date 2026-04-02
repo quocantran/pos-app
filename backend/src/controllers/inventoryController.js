@@ -27,7 +27,7 @@ class InventoryController {
 
   async importStock(req, res, next) {
     try {
-      const { items, note } = req.body;
+      const { items, note, supplier_id } = req.body;
 
       if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({
@@ -46,7 +46,7 @@ class InventoryController {
         }
       }
 
-      const result = await inventoryService.importStock({ items, note }, req.user.id);
+      const result = await inventoryService.importStock({ items, note, supplier_id }, req.user.id);
 
       res.json({
         success: true,
@@ -88,6 +88,30 @@ class InventoryController {
       res.json({
         success: true,
         ...result
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMinQuantity(req, res, next) {
+    try {
+      const variantId = req.params.variantId;
+      const { min_quantity } = req.body;
+
+      if (min_quantity === undefined || min_quantity < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Giá trị ngưỡng cảnh báo không hợp lệ'
+        });
+      }
+
+      const result = await inventoryService.updateMinQuantity(variantId, min_quantity);
+
+      res.json({
+        success: true,
+        message: 'Cập nhật ngưỡng cảnh báo thành công',
+        data: result
       });
     } catch (error) {
       next(error);

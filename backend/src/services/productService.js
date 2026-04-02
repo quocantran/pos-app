@@ -1,8 +1,56 @@
 const { Product, Category, Variant, Inventory, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
+/**
+ * Remove Vietnamese diacritics and convert to uppercase slug.
+ */
+const normalizeVietnamese = (str) => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'D')
+    .replace(/Đ/g, 'D')
+    .replace(/[^a-zA-Z0-9\s]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
+};
+
+/**
+ * Generate random alphanumeric string (uppercase, 6 chars).
+ */
+const randomCode = (length = 6) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
+/**
+ * Auto-generate SKU: [PRODUCT_CODE]-[SIZE]-[COLOR]-[RANDOM6]
+ */
+const generateSku = (productName, size, color) => {
+  const code = normalizeVietnamese(productName) || 'SP';
+  const sizeCode = normalizeVietnamese(size) || 'DF';
+  const colorCode = normalizeVietnamese(color) || 'DF';
+  const random = randomCode(6);
+  return `${code}-${sizeCode}-${colorCode}-${random}`;
+};
+
+/**
+ * Generate a numeric barcode.
+ */
+const generateBarcode = () => {
+  const timestamp = Date.now().toString().slice(-8);
+  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `${timestamp}${random}`;
+};
+
 class ProductService {
-  validateProductPayload(data) {
+  validateProductPayload(data, isUpdate = false) {
     const isBlank = (value) => !String(value ?? '').trim();
     const variants = Array.isArray(data.variants) ? data.variants : [];
 
@@ -14,27 +62,18 @@ class ProductService {
       throw { status: 400, message: 'Category is required' };
     }
 
-    if (isBlank(data.description)) {
-      throw { status: 400, message: 'Description is required' };
-    }
+    // Description is now optional
 
     if (variants.length === 0) {
       throw { status: 400, message: 'At least one variant is required' };
     }
 
     const seenSku = new Set();
-    const seenBarcode = new Set();
 
     variants.forEach((variant, index) => {
       const row = `Variant ${index + 1}`;
 
-      if (isBlank(variant.sku)) {
-        throw { status: 400, message: `${row}: sku is required` };
-      }
-
-      if (isBlank(variant.barcode)) {
-        throw { status: 400, message: `${row}: barcode is required` };
-      }
+      // SKU and barcode are auto-generated, no longer required from user
 
       if (isBlank(variant.size)) {
         throw { status: 400, message: `${row}: size is required` };
@@ -44,19 +83,14 @@ class ProductService {
         throw { status: 400, message: `${row}: color is required` };
       }
 
-      const sku = String(variant.sku).trim().toLowerCase();
-      const barcode = String(variant.barcode).trim().toLowerCase();
-
-      if (seenSku.has(sku)) {
-        throw { status: 400, message: `${row}: duplicate sku in variants list` };
+      // Only check for duplicate SKUs if provided
+      if (variant.sku) {
+        const sku = String(variant.sku).trim().toLowerCase();
+        if (seenSku.has(sku)) {
+          throw { status: 400, message: `${row}: duplicate sku in variants list` };
+        }
+        seenSku.add(sku);
       }
-
-      if (seenBarcode.has(barcode)) {
-        throw { status: 400, message: `${row}: duplicate barcode in variants list` };
-      }
-
-      seenSku.add(sku);
-      seenBarcode.add(barcode);
 
       const price = Number(variant.price);
       if (!Number.isFinite(price) || price <= 0) {
@@ -68,9 +102,12 @@ class ProductService {
         throw { status: 400, message: `${row}: cost price must be greater than 0` };
       }
 
-      const quantity = Number(variant.quantity);
-      if (!Number.isInteger(quantity) || quantity < 0) {
-        throw { status: 400, message: `${row}: quantity must be a non-negative integer` };
+      // Only validate quantity for new variants (not update)
+      if (!isUpdate || !variant.id) {
+        const quantity = Number(variant.quantity);
+        if (!Number.isInteger(quantity) || quantity < 0) {
+          throw { status: 400, message: `${row}: quantity must be a non-negative integer` };
+        }
       }
     });
   }
@@ -155,7 +192,7 @@ class ProductService {
   }
 
   async create(data) {
-    this.validateProductPayload(data);
+    this.validateProductPayload(data, false);
     await this.validateCategory(data.category_id);
 
     const transaction = await sequelize.transaction();
@@ -164,17 +201,27 @@ class ProductService {
       const product = await Product.create({
         name: data.name.trim(),
         category_id: data.category_id,
-        description: data.description.trim(),
+        description: (data.description || '').trim(),
         is_active: data.is_active !== false
       }, { transaction });
 
       // Create variants if provided
       if (data.variants && data.variants.length > 0) {
         for (const variantData of data.variants) {
+          // Auto-generate SKU if not provided
+          const sku = variantData.sku && String(variantData.sku).trim()
+            ? String(variantData.sku).trim()
+            : generateSku(data.name, variantData.size, variantData.color);
+
+          // Auto-generate barcode if not provided
+          const barcode = variantData.barcode && String(variantData.barcode).trim()
+            ? String(variantData.barcode).trim()
+            : generateBarcode();
+
           const variant = await Variant.create({
             product_id: product.id,
-            sku: String(variantData.sku).trim(),
-            barcode: String(variantData.barcode).trim(),
+            sku,
+            barcode,
             size: String(variantData.size).trim(),
             color: String(variantData.color).trim(),
             price: Number(variantData.price),
@@ -200,7 +247,7 @@ class ProductService {
   }
 
   async update(id, data) {
-    this.validateProductPayload(data);
+    this.validateProductPayload(data, true);
     await this.validateCategory(data.category_id);
 
     const transaction = await sequelize.transaction();
@@ -216,7 +263,7 @@ class ProductService {
       await product.update({
         name: data.name.trim(),
         category_id: data.category_id,
-        description: data.description.trim(),
+        description: (data.description || '').trim(),
         is_active: data.is_active
       }, { transaction });
 
@@ -234,9 +281,8 @@ class ProductService {
             const existingVariant = existingVariantMap.get(variantData.id);
             incomingVariantIds.add(existingVariant.id);
 
+            // Don't update SKU and barcode for existing variants
             await existingVariant.update({
-              sku: String(variantData.sku).trim(),
-              barcode: String(variantData.barcode).trim(),
               size: String(variantData.size).trim(),
               color: String(variantData.color).trim(),
               price: Number(variantData.price),
@@ -244,17 +290,22 @@ class ProductService {
               is_active: true
             }, { transaction });
 
-            await Inventory.update({
-              quantity: Number(variantData.quantity)
-            }, {
-              where: { variant_id: existingVariant.id },
-              transaction
-            });
+            // Don't update inventory quantity from product form anymore
+            // Inventory should be managed through inventory module
           } else {
+            // Auto-generate SKU for new variants
+            const sku = variantData.sku && String(variantData.sku).trim()
+              ? String(variantData.sku).trim()
+              : generateSku(data.name, variantData.size, variantData.color);
+
+            const barcode = variantData.barcode && String(variantData.barcode).trim()
+              ? String(variantData.barcode).trim()
+              : generateBarcode();
+
             const newVariant = await Variant.create({
               product_id: product.id,
-              sku: String(variantData.sku).trim(),
-              barcode: String(variantData.barcode).trim(),
+              sku,
+              barcode,
               size: String(variantData.size).trim(),
               color: String(variantData.color).trim(),
               price: Number(variantData.price),
@@ -264,7 +315,7 @@ class ProductService {
 
             await Inventory.create({
               variant_id: newVariant.id,
-              quantity: Number(variantData.quantity),
+              quantity: Number(variantData.quantity || 0),
               min_quantity: variantData.min_quantity || 10
             }, { transaction });
 

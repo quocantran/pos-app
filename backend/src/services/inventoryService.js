@@ -1,4 +1,4 @@
-const { Inventory, InventoryHistory, Variant, Product, User, sequelize } = require('../models');
+const { Inventory, InventoryHistory, Variant, Product, User, Supplier, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 class InventoryService {
@@ -128,7 +128,8 @@ class InventoryService {
           type: 'IMPORT',
           reference_id: null,
           note: item.note || data.note || 'Stock import',
-          created_by: userId
+          created_by: userId,
+          supplier_id: data.supplier_id || null
         }, { transaction });
 
         results.push({
@@ -222,7 +223,8 @@ class InventoryService {
           attributes: ['id', 'sku', 'barcode', 'size', 'color'],
           include: [{ model: Product, as: 'product', attributes: ['id', 'name'] }]
         },
-        { model: User, as: 'createdByUser', attributes: ['id', 'username', 'full_name'] }
+        { model: User, as: 'createdByUser', attributes: ['id', 'username', 'full_name'] },
+        { model: Supplier, as: 'supplier', attributes: ['id', 'supplier_code', 'name', 'phone'] }
       ],
       order: [['created_at', 'DESC']],
       limit: parseInt(limit),
@@ -237,6 +239,22 @@ class InventoryService {
         limit: parseInt(limit),
         totalPages: Math.ceil(count / limit)
       }
+    };
+  }
+  async updateMinQuantity(variantId, minQuantity) {
+    const inventory = await Inventory.findOne({
+      where: { variant_id: variantId }
+    });
+
+    if (!inventory) {
+      throw { status: 404, message: 'Không tìm thấy tồn kho cho sản phẩm này' };
+    }
+
+    await inventory.update({ min_quantity: minQuantity });
+
+    return {
+      variant_id: variantId,
+      min_quantity: minQuantity
     };
   }
 }

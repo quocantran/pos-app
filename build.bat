@@ -60,8 +60,10 @@ if errorlevel 1 (
 
 REM Copy frontend dist
 echo.
-echo [3/8] Copying frontend build...
-xcopy /E /Y /I "%FRONTEND_SRC%\dist\*" "%PROD_DIR%frontend\dist\"
+echo [3/8] Refreshing frontend build...
+if exist "%PROD_DIR%frontend\dist" rd /S /Q "%PROD_DIR%frontend\dist"
+mkdir "%PROD_DIR%frontend\dist"
+xcopy /E /Y /I "%FRONTEND_SRC%\dist\*" "%PROD_DIR%frontend\dist\" >nul
 
 REM Copy backend source (excluding app.js which we have modified)
 echo.
@@ -123,7 +125,7 @@ echo app.use^('/api', routes^);
 echo.
 echo // Serve static frontend files
 echo if ^(frontendExists^) {
-echo   app.use^(express.static^(FRONTEND_PATH, { maxAge: '1d', etag: true }^)^);
+echo   app.use^(express.static^(FRONTEND_PATH^)^);
 echo }
 echo.
 echo // API 404 handler

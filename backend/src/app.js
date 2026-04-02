@@ -32,7 +32,7 @@ app.use('/api', routes);
 
 // Serve static frontend files
 if (frontendExists) {
-  app.use(express.static(FRONTEND_PATH, { maxAge: '1d', etag: true }));
+  app.use(express.static(FRONTEND_PATH));
 }
 
 // API 404 handler
@@ -70,7 +70,7 @@ const startServer = async () => {
     console.log('Connecting to database...');
     await sequelize.authenticate();
     console.log('Database connection established.');
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV == 'production') {
       await sequelize.sync();
       console.log('Database synchronized.');
     } else {

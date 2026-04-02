@@ -31,6 +31,7 @@ const Order = require('./Order')(sequelize);
 const OrderItem = require('./OrderItem')(sequelize);
 const Refund = require('./Refund')(sequelize);
 const RefundItem = require('./RefundItem')(sequelize);
+const Supplier = require('./Supplier')(sequelize);
 
 // Create models object
 const models = {
@@ -43,7 +44,8 @@ const models = {
   Order,
   OrderItem,
   Refund,
-  RefundItem
+  RefundItem,
+  Supplier
 };
 
 // Setup associations

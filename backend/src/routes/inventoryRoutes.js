@@ -14,5 +14,6 @@ router.get('/history', inventoryController.getHistory);
 // Admin only
 router.post('/import', roleCheck('ADMIN'), inventoryController.importStock);
 router.put('/adjust/:variantId', roleCheck('ADMIN'), inventoryController.adjustStock);
+router.put('/min-quantity/:variantId', roleCheck('ADMIN'), inventoryController.updateMinQuantity);
 
 module.exports = router;

@@ -8,6 +8,7 @@ const variantRoutes = require('./variantRoutes');
 const inventoryRoutes = require('./inventoryRoutes');
 const orderRoutes = require('./orderRoutes');
 const reportRoutes = require('./reportRoutes');
+const supplierRoutes = require('./supplierRoutes');
 
 // Mount routes
 router.use('/auth', authRoutes);
@@ -17,6 +18,7 @@ router.use('/variants', variantRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/orders', orderRoutes);
 router.use('/reports', reportRoutes);
+router.use('/suppliers', supplierRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

@@ -1,74 +1,68 @@
 @echo off
+chcp 65001 >nul 2>&1
 REM ========================================
-REM POS System - Start Script
-REM ========================================
-REM Double-click this file to start the POS system
+REM POS System - Khoi dong he thong
 REM ========================================
 
 setlocal enabledelayedexpansion
 
-REM Get script directory
+REM Di chuyen den thu muc chua file
 set "SCRIPT_DIR=%~dp0"
 cd /d "%SCRIPT_DIR%"
 
-REM Display startup message
+REM Hien thi thong bao
 echo.
 echo ========================================
-echo   POS System - Starting...
+echo   HE THONG BAN HANG POS
+echo   Dang khoi dong, vui long doi...
 echo ========================================
 echo.
 
-REM Read version
+REM Doc phien ban
+set "VERSION=unknown"
 if exist "%SCRIPT_DIR%version.txt" (
     set /p VERSION=<"%SCRIPT_DIR%version.txt"
-    echo Version: !VERSION!
+    echo   Phien ban: !VERSION!
 ) else (
-    echo Version: Unknown
+    echo   Phien ban: Khong xac dinh
 )
 echo.
 
-REM Check for Node.js
+REM Kiem tra Node.js
 set "NODE_EXE=%SCRIPT_DIR%node\node.exe"
 if not exist "%NODE_EXE%" (
     if exist "%ProgramFiles%\nodejs\node.exe" (
         set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
-        echo Portable Node.js not found, using system Node.js.
     ) else if exist "%ProgramFiles(x86)%\nodejs\node.exe" (
         set "NODE_EXE=%ProgramFiles(x86)%\nodejs\node.exe"
-        echo Portable Node.js not found, using system Node.js.
     ) else (
-        echo ERROR: Node.js not found!
         echo.
-        echo Expected portable runtime: %SCRIPT_DIR%node\node.exe
-        echo You can either:
-        echo   1. Re-download this package with node\node.exe included, or
-        echo   2. Install Node.js system-wide from https://nodejs.org
+        echo   [LOI] Khong tim thay Node.js!
+        echo   Vui long lien he ho tro ky thuat.
         echo.
         pause
         exit /b 1
     )
 )
 
-REM Check for backend
+REM Kiem tra backend
 set "BACKEND_APP=%SCRIPT_DIR%backend\src\app.js"
 if not exist "%BACKEND_APP%" (
-    echo ERROR: Backend not found!
-    echo.
-    echo Expected location: %BACKEND_APP%
+    echo   [LOI] Khong tim thay du lieu he thong!
+    echo   Vui long lien he ho tro ky thuat.
     echo.
     pause
     exit /b 1
 )
 
-REM Check for .env
+REM Kiem tra file cau hinh
 if not exist "%SCRIPT_DIR%backend\.env" (
-    echo WARNING: .env file not found!
-    echo.
-    echo Creating from template...
+    echo   [CANH BAO] Thieu file cau hinh he thong!
+    echo   Dang tao tu ban mau...
     if exist "%SCRIPT_DIR%backend\.env.example" (
-        copy "%SCRIPT_DIR%backend\.env.example" "%SCRIPT_DIR%backend\.env"
+        copy "%SCRIPT_DIR%backend\.env.example" "%SCRIPT_DIR%backend\.env" >nul
         echo.
-        echo IMPORTANT: Please edit backend\.env with your database settings!
+        echo   QUAN TRONG: Vui long cau hinh ket noi co so du lieu!
         echo.
         notepad "%SCRIPT_DIR%backend\.env"
         pause
@@ -76,37 +70,46 @@ if not exist "%SCRIPT_DIR%backend\.env" (
     )
 )
 
-REM Get port from .env
+REM Lay cong tu file cau hinh
 set "PORT=5000"
 for /f "tokens=1,2 delims==" %%a in ('findstr /B "PORT=" "%SCRIPT_DIR%backend\.env" 2^>nul') do (
     set "PORT=%%b"
 )
 if "%PORT%"=="" set "PORT=5000"
 
-REM Check if server already running on this port
+REM Dong backend POS cu de dam bao nap code moi nhat
+echo   Dang dong phien POS cu (neu co)...
+powershell -NoProfile -Command "Get-WmiObject Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'backend[\\/]src[\\/]app.js' } | Stop-Process -Force -ErrorAction SilentlyContinue"
+timeout /t 1 >nul
+
+REM Kiem tra cong sau khi da dong backend POS cu
 call :CHECK_PORT %PORT%
 if not errorlevel 1 (
-    echo Backend is already running on port %PORT%.
-    goto OPEN_BROWSER
+    echo.
+    echo   [LOI] Cong %PORT% dang duoc su dung boi ung dung khac!
+    echo   Vui long tat ung dung dang dung cong nay roi thu lai.
+    echo.
+    pause
+    exit /b 1
 )
 
-echo Starting backend server on port %PORT%...
-echo.
+echo   Dang khoi dong may chu...
 
-REM Start backend in background
+REM Khoi dong backend an trong nen
 start "POS Backend" /min "%NODE_EXE%" "%BACKEND_APP%"
 
-REM Wait for server to start (check every second, max 45 seconds)
-echo Waiting for server to start...
+REM Cho may chu khoi dong (toi da 45 giay)
+echo   Vui long doi...
 set /a WAIT_COUNT=0
 :WAIT_LOOP
 call :CHECK_PORT %PORT%
-if not errorlevel 1 goto OPEN_BROWSER
+if not errorlevel 1 goto SERVER_READY
 set /a WAIT_COUNT+=1
 if !WAIT_COUNT! geq 45 (
     echo.
-    echo ERROR: Backend did not start successfully.
-    echo Please check backend\.env and ensure MySQL is running.
+    echo   [LOI] He thong khong khoi dong duoc!
+    echo   Vui long kiem tra ket noi co so du lieu
+    echo   hoac lien he ho tro ky thuat.
     echo.
     pause
     exit /b 1
@@ -114,14 +117,18 @@ if !WAIT_COUNT! geq 45 (
 timeout /t 1 >nul
 goto WAIT_LOOP
 
-:OPEN_BROWSER
+:SERVER_READY
 echo.
 echo ========================================
-echo   Opening POS System in Chrome
+echo   Khoi dong thanh cong!
+echo   Dang mo ung dung...
 echo ========================================
 echo.
 
-REM Find Chrome
+:OPEN_BROWSER
+set "APP_URL=http://localhost:%PORT%/?v=!VERSION!&t=%RANDOM%"
+
+REM Tim trinh duyet Chrome
 set "CHROME_PATH="
 if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
     set "CHROME_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -130,24 +137,17 @@ if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
     set "CHROME_PATH=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 )
 
-REM Open in Chrome kiosk mode
+REM Mo ung dung trong Chrome
 if defined CHROME_PATH (
-    echo Opening Chrome in kiosk/app mode...
-    start "" "%CHROME_PATH%" --new-window --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --disable-features=TranslateUI --app="http://localhost:%PORT%" --start-fullscreen --kiosk
+    start "" "%CHROME_PATH%" --new-window --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --disable-features=TranslateUI --app="!APP_URL!" --start-fullscreen --kiosk
 ) else (
-    echo Chrome not found. Opening in default browser...
-    start "" "http://localhost:%PORT%"
+    start "" "!APP_URL!"
 )
 
-echo.
-echo ========================================
-echo   POS System Started Successfully!
-echo ========================================
-echo.
-echo Server running at: http://localhost:%PORT%
-echo.
-echo To update code later, run update.bat
-echo.
+REM Doi 2 giay de dam bao trinh duyet da mo
+timeout /t 2 >nul
+
+REM Tat cua so terminal nay - he thong van chay nen
 exit /b 0
 
 :CHECK_PORT

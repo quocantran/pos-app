@@ -38,6 +38,14 @@ module.exports = (sequelize) => {
         model: 'users',
         key: 'id'
       }
+    },
+    supplier_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'suppliers',
+        key: 'id'
+      }
     }
   }, {
     tableName: 'inventory_history',
@@ -49,6 +57,7 @@ module.exports = (sequelize) => {
   InventoryHistory.associate = (models) => {
     InventoryHistory.belongsTo(models.Variant, { foreignKey: 'variant_id', as: 'variant' });
     InventoryHistory.belongsTo(models.User, { foreignKey: 'created_by', as: 'createdByUser' });
+    InventoryHistory.belongsTo(models.Supplier, { foreignKey: 'supplier_id', as: 'supplier' });
   };
 
   return InventoryHistory;
