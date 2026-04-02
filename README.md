@@ -119,11 +119,14 @@ Nếu muốn ẩn bớt source backend, có thể dùng hướng nâng cao:
 
 Lưu ý: các hướng này phức tạp hơn, khó debug hơn, và vẫn không bảo mật tuyệt đối mã nguồn.
 
-## 8. Kiosk Chrome không full-screen như mong muốn
+## 8. Mở Chrome như ứng dụng thông thường
 
-`start.bat` đã được chỉnh để mở Chrome bằng profile riêng và app/kiosk mode:
-- Không dùng tab/ô URL như cửa sổ web bình thường.
-- Mỗi máy dùng profile tại thư mục nội bộ của gói, tránh bị ảnh hưởng bởi session Chrome cá nhân.
+`start.bat` mở Chrome ở cửa sổ bình thường (maximized), có thanh tiêu đề và nút thu nhỏ/phóng to/đóng như ứng dụng Windows thông thường.
+
+Luồng khởi động đã được tối ưu cho máy khách:
+- Nếu backend POS đã chạy sẵn: script chỉ mở lại giao diện frontend.
+- Nếu backend chưa chạy: script tự khởi động backend rồi mở giao diện.
+- Chỉ báo lỗi khi cổng đang bị ứng dụng khác (không phải POS) chiếm dụng.
 
 Nếu máy khách vẫn mở như trình duyệt thường, kiểm tra:
 - Chính sách công ty/Windows chặn tham số kiosk.

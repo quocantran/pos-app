@@ -77,12 +77,17 @@ for /f "tokens=1,2 delims==" %%a in ('findstr /B "PORT=" "%SCRIPT_DIR%backend\.e
 )
 if "%PORT%"=="" set "PORT=5000"
 
-REM Dong backend POS cu de dam bao nap code moi nhat
-echo   Dang dong phien POS cu (neu co)...
-powershell -NoProfile -Command "Get-WmiObject Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'backend[\\/]src[\\/]app.js' } | Stop-Process -Force -ErrorAction SilentlyContinue"
-timeout /t 1 >nul
+REM Kiem tra backend POS da chay chua
+set "POS_RUNNING=0"
+powershell -NoProfile -Command "$p = Get-WmiObject Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'backend[\\/]src[\\/]app.js' }; if($p){ exit 0 } else { exit 1 }" >nul 2>&1
+if not errorlevel 1 set "POS_RUNNING=1"
 
-REM Kiem tra cong sau khi da dong backend POS cu
+if "%POS_RUNNING%"=="1" (
+    echo   Da phat hien backend POS dang chay. Se mo lai giao dien...
+    goto WAIT_SERVER
+)
+
+REM Kiem tra cong neu backend POS chua chay
 call :CHECK_PORT %PORT%
 if not errorlevel 1 (
     echo.
@@ -99,6 +104,7 @@ REM Khoi dong backend an trong nen
 start "POS Backend" /min "%NODE_EXE%" "%BACKEND_APP%"
 
 REM Cho may chu khoi dong (toi da 45 giay)
+:WAIT_SERVER
 echo   Vui long doi...
 set /a WAIT_COUNT=0
 :WAIT_LOOP
@@ -139,7 +145,7 @@ if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
 
 REM Mo ung dung trong Chrome
 if defined CHROME_PATH (
-    start "" "%CHROME_PATH%" --new-window --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --disable-features=TranslateUI --app="!APP_URL!" --start-fullscreen --kiosk
+    start "" "%CHROME_PATH%" --new-window --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --disable-features=TranslateUI --app="!APP_URL!" --start-maximized
 ) else (
     start "" "!APP_URL!"
 )
