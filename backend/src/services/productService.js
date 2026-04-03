@@ -281,8 +281,17 @@ class ProductService {
             const existingVariant = existingVariantMap.get(variantData.id);
             incomingVariantIds.add(existingVariant.id);
 
-            // Don't update SKU and barcode for existing variants
+            const nextSku = variantData.sku && String(variantData.sku).trim()
+              ? String(variantData.sku).trim()
+              : generateSku(data.name, variantData.size, variantData.color);
+
+            const nextBarcode = variantData.barcode !== undefined && variantData.barcode !== null
+              ? String(variantData.barcode).trim()
+              : existingVariant.barcode;
+
             await existingVariant.update({
+              sku: nextSku,
+              barcode: nextBarcode || null,
               size: String(variantData.size).trim(),
               color: String(variantData.color).trim(),
               price: Number(variantData.price),
