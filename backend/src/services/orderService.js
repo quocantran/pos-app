@@ -27,10 +27,14 @@ class OrderService {
     if (start_date || end_date) {
       where.created_at = {};
       if (start_date) {
-        where.created_at[Op.gte] = new Date(start_date);
+        const [sy, sm, sd] = start_date.split('-').map(Number);
+        const startD = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+        where.created_at[Op.gte] = startD;
       }
       if (end_date) {
-        where.created_at[Op.lte] = new Date(end_date + 'T23:59:59');
+        const [ey, em, ed] = end_date.split('-').map(Number);
+        const endD = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+        where.created_at[Op.lte] = endD;
       }
     }
 

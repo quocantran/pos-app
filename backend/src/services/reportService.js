@@ -6,8 +6,20 @@ class ReportService {
     const { start_date, end_date, group_by = 'day' } = query;
 
     // Default to last 30 days if no date provided
-    const endDate = end_date ? new Date(end_date + 'T23:59:59') : new Date();
-    const startDate = start_date ? new Date(start_date) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    let endDate, startDate;
+    if (end_date) {
+      const [ey, em, ed] = end_date.split('-').map(Number);
+      endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    } else {
+      endDate = new Date();
+    }
+    if (start_date) {
+      const [sy, sm, sd] = start_date.split('-').map(Number);
+      startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+    } else {
+      startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      startDate.setHours(0, 0, 0, 0);
+    }
 
     const pad = (value) => String(value).padStart(2, '0');
     const toDateKey = (date) => {
@@ -147,8 +159,20 @@ class ReportService {
   async getTopProducts(query = {}) {
     const { start_date, end_date, limit = 10 } = query;
 
-    const endDate = end_date ? new Date(end_date + 'T23:59:59') : new Date();
-    const startDate = start_date ? new Date(start_date) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    let endDate, startDate;
+    if (end_date) {
+      const [ey, em, ed] = end_date.split('-').map(Number);
+      endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    } else {
+      endDate = new Date();
+    }
+    if (start_date) {
+      const [sy, sm, sd] = start_date.split('-').map(Number);
+      startDate = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+    } else {
+      startDate = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      startDate.setHours(0, 0, 0, 0);
+    }
 
     const topProducts = await OrderItem.findAll({
       attributes: [
