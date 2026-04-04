@@ -102,6 +102,10 @@ class ProductService {
         throw { status: 400, message: `${row}: cost price must be greater than 0` };
       }
 
+      if (costPrice >= price) {
+        throw { status: 400, message: `${row}: cost price must be less than selling price` };
+      }
+
       // Only validate quantity for new variants (not update)
       if (!isUpdate || !variant.id) {
         const quantity = Number(variant.quantity);

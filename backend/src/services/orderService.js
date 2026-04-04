@@ -220,6 +220,17 @@ class OrderService {
         throw { status: 400, message: 'Order is already fully refunded' };
       }
 
+      const orderSubtotal = parseFloat(order.subtotal || 0);
+      const orderPaidTotal = parseFloat(order.total || 0);
+      const paidRatio = orderSubtotal > 0 ? (orderPaidTotal / orderSubtotal) : 1;
+      const floorMoney = (value) => {
+        const numericValue = Number(value || 0);
+        if (numericValue >= 1000) {
+          return Math.floor(numericValue / 1000) * 1000;
+        }
+        return Math.floor(numericValue);
+      };
+
       let refundTotal = 0;
       const refundItemsData = [];
 
@@ -257,8 +268,11 @@ class OrderService {
           created_by: userId
         }, { transaction });
 
-        // Calculate refund amount
-        const unitRefund = parseFloat(orderItem.total) / orderItem.quantity;
+        // Calculate refund amount after allocating order-level discount by proportional ratio.
+        const lineTotalBeforeOrderDiscount = parseFloat(orderItem.total || 0);
+        const discountedLineTotal = lineTotalBeforeOrderDiscount * paidRatio;
+        const rawUnitRefund = orderItem.quantity > 0 ? (discountedLineTotal / orderItem.quantity) : 0;
+        const unitRefund = floorMoney(rawUnitRefund);
         const itemRefundAmount = unitRefund * refundItem.quantity;
         refundTotal += itemRefundAmount;
 
@@ -266,7 +280,7 @@ class OrderService {
           order_item_id: orderItem.id,
           variant_id: orderItem.variant_id,
           quantity: refundItem.quantity,
-          unit_price: parseFloat(orderItem.unit_price),
+          unit_price: unitRefund,
           refund_amount: itemRefundAmount
         });
       }
