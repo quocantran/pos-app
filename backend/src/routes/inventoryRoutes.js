@@ -10,9 +10,12 @@ router.use(auth);
 router.get('/', inventoryController.getAll);
 router.get('/low-stock', inventoryController.getLowStock);
 router.get('/history', inventoryController.getHistory);
+router.get('/template', inventoryController.downloadTemplate);
 
 // Admin only
 router.post('/import', roleCheck('ADMIN'), inventoryController.importStock);
+router.post('/import-excel/validate', roleCheck('ADMIN'), inventoryController.getUploadMiddleware(), inventoryController.validateExcel);
+router.post('/import-excel/confirm', roleCheck('ADMIN'), inventoryController.confirmExcelImport);
 router.put('/adjust/:variantId', roleCheck('ADMIN'), inventoryController.adjustStock);
 router.put('/min-quantity/:variantId', roleCheck('ADMIN'), inventoryController.updateMinQuantity);
 

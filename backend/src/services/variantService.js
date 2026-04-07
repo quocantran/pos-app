@@ -32,6 +32,7 @@ class VariantService {
         {
           model: Product,
           as: 'product',
+          where: { is_active: true },
           attributes: ['id', 'name'],
           include: [{ model: Category, as: 'category', attributes: ['id', 'name'] }]
         },

@@ -32,7 +32,7 @@ class ProductController {
       if (!name) {
         return res.status(400).json({
           success: false,
-          message: 'Product name is required'
+          message: 'Tên sản phẩm là bắt buộc'
         });
       }
 
@@ -46,7 +46,7 @@ class ProductController {
 
       res.status(201).json({
         success: true,
-        message: 'Product created successfully',
+        message: 'Tạo sản phẩm thành công',
         data: product
       });
     } catch (error) {
@@ -67,7 +67,7 @@ class ProductController {
 
       res.json({
         success: true,
-        message: 'Product updated successfully',
+        message: 'Cập nhật sản phẩm thành công',
         data: product
       });
     } catch (error) {
@@ -80,7 +80,43 @@ class ProductController {
       await productService.delete(req.params.id);
       res.json({
         success: true,
-        message: 'Product deleted successfully'
+        message: 'Xóa sản phẩm thành công'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async discontinue(req, res, next) {
+    try {
+      await productService.discontinue(req.params.id);
+      res.json({
+        success: true,
+        message: 'Đã ngừng kinh doanh sản phẩm'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async reactivate(req, res, next) {
+    try {
+      await productService.reactivate(req.params.id);
+      res.json({
+        success: true,
+        message: 'Đã mở bán lại sản phẩm'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getNextBarcode(req, res, next) {
+    try {
+      const barcode = await productService.getNextBarcode();
+      res.json({
+        success: true,
+        data: { barcode }
       });
     } catch (error) {
       next(error);

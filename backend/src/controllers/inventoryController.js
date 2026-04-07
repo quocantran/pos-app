@@ -1,4 +1,22 @@
 const inventoryService = require('../services/inventoryService');
+const multer = require('multer');
+
+// Configure multer for file upload (in memory)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
+    if (allowedTypes.includes(file.mimetype) || file.originalname.match(/\.(xlsx|xls)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file Excel (.xlsx, .xls)'), false);
+    }
+  }
+});
 
 class InventoryController {
   async getAll(req, res, next) {
@@ -32,7 +50,7 @@ class InventoryController {
       if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({
           success: false,
-          message: 'Items array is required'
+          message: 'Danh sách sản phẩm nhập là bắt buộc'
         });
       }
 
@@ -41,7 +59,7 @@ class InventoryController {
         if (!item.variant_id || !item.quantity || item.quantity <= 0) {
           return res.status(400).json({
             success: false,
-            message: 'Each item must have variant_id and positive quantity'
+            message: 'Mỗi sản phẩm phải có variant_id và số lượng > 0'
           });
         }
       }
@@ -50,7 +68,7 @@ class InventoryController {
 
       res.json({
         success: true,
-        message: 'Stock imported successfully',
+        message: 'Nhập kho thành công',
         data: result
       });
     } catch (error) {
@@ -66,7 +84,7 @@ class InventoryController {
       if (quantity === undefined || quantity < 0) {
         return res.status(400).json({
           success: false,
-          message: 'Valid quantity is required'
+          message: 'Số lượng không hợp lệ'
         });
       }
 
@@ -74,7 +92,7 @@ class InventoryController {
 
       res.json({
         success: true,
-        message: 'Stock adjusted successfully',
+        message: 'Điều chỉnh tồn kho thành công',
         data: result
       });
     } catch (error) {
@@ -112,6 +130,96 @@ class InventoryController {
         success: true,
         message: 'Cập nhật ngưỡng cảnh báo thành công',
         data: result
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Download Excel template
+   */
+  async downloadTemplate(req, res, next) {
+    try {
+      const buffer = inventoryService.generateTemplate();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=mau_nhap_kho.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Upload & validate Excel file
+   */
+  getUploadMiddleware() {
+    return upload.single('file');
+  }
+
+  async validateExcel(req, res, next) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng chọn file Excel để upload'
+        });
+      }
+
+      const results = await inventoryService.validateExcelImport(req.file.buffer);
+
+      const validCount = results.filter(r => r.status === 'valid').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+      const newCount = results.filter(r => r.status === 'new').length;
+
+      res.json({
+        success: true,
+        message: `Đã validate ${results.length} dòng: ${validCount} hợp lệ, ${newCount} sẽ tạo mới, ${errorCount} lỗi`,
+        data: {
+          items: results,
+          summary: {
+            total: results.length,
+            valid: validCount,
+            error: errorCount,
+            new: newCount
+          }
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Confirm Excel import
+   */
+  async confirmExcelImport(req, res, next) {
+    try {
+      const { items, supplier_id } = req.body;
+
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có dữ liệu để import'
+        });
+      }
+
+      // Filter out error items
+      const validItems = items.filter(item => item.status !== 'error');
+
+      if (validItems.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có dữ liệu hợp lệ để import'
+        });
+      }
+
+      const results = await inventoryService.processExcelImport(validItems, req.user.id, supplier_id || null);
+
+      res.json({
+        success: true,
+        message: `Nhập kho thành công ${results.length} sản phẩm`,
+        data: results
       });
     } catch (error) {
       next(error);

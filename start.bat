@@ -12,6 +12,87 @@ cd /d "%SCRIPT_DIR%"
 
 REM Hien thi thong bao
 echo.
+
+REM ========================================
+REM Tu dong kiem tra cap nhat tu GitHub
+REM - Co mang + co git + la repo git: tu dong cap nhat
+REM - Mat mang / loi: bo qua, chay ban hien tai
+REM ========================================
+set "AUTO_UPDATED=0"
+set "FORCE_RESTART_BACKEND=0"
+
+echo   Dang kiem tra cap nhat...
+
+if not exist "%SCRIPT_DIR%.git" (
+    echo   [Bo qua] Thu muc hien tai khong phai Git repository.
+    goto AUTO_UPDATE_DONE
+)
+
+where git >nul 2>&1
+if errorlevel 1 (
+    echo   [Bo qua] Khong tim thay Git tren may.
+    goto AUTO_UPDATE_DONE
+)
+
+call :HAS_INTERNET
+if errorlevel 1 (
+    echo   [Bo qua] Khong co ket noi mang. Se chay ban hien tai.
+    goto AUTO_UPDATE_DONE
+)
+
+for /f "tokens=*" %%a in ('git rev-parse --abbrev-ref HEAD 2^>nul') do set "BRANCH=%%a"
+if "%BRANCH%"=="" (
+    echo   [Bo qua] Khong xac dinh duoc nhanh Git hien tai.
+    goto AUTO_UPDATE_DONE
+)
+
+git fetch origin >nul 2>&1
+if errorlevel 1 (
+    echo   [Bo qua] Khong lay duoc thong tin phien ban moi.
+    goto AUTO_UPDATE_DONE
+)
+
+for /f "tokens=*" %%a in ('git rev-parse HEAD 2^>nul') do set "LOCAL_SHA=%%a"
+for /f "tokens=*" %%a in ('git rev-parse origin/%BRANCH% 2^>nul') do set "REMOTE_SHA=%%a"
+
+if "%LOCAL_SHA%"=="" goto AUTO_UPDATE_DONE
+if "%REMOTE_SHA%"=="" goto AUTO_UPDATE_DONE
+
+if /I "%LOCAL_SHA%"=="%REMOTE_SHA%" (
+    echo   Da su dung phien ban moi nhat.
+    goto AUTO_UPDATE_DONE
+)
+
+echo   Phat hien phien ban moi. Dang cap nhat...
+
+set "ENV_FILE=%SCRIPT_DIR%backend\.env"
+set "ENV_BACKUP=%TEMP%\pos_backend_env_%RANDOM%%RANDOM%.bak"
+set "HAS_ENV_BACKUP=0"
+if exist "%ENV_FILE%" (
+    copy /Y "%ENV_FILE%" "%ENV_BACKUP%" >nul
+    if exist "%ENV_BACKUP%" set "HAS_ENV_BACKUP=1"
+)
+
+git reset --hard origin/%BRANCH% >nul 2>&1
+if errorlevel 1 (
+    echo   [Canh bao] Cap nhat that bai. Se chay ban hien tai.
+    if "%HAS_ENV_BACKUP%"=="1" if exist "%ENV_BACKUP%" del "%ENV_BACKUP%" >nul 2>&1
+    goto AUTO_UPDATE_DONE
+)
+
+if "%HAS_ENV_BACKUP%"=="1" (
+    if exist "%ENV_BACKUP%" (
+        copy /Y "%ENV_BACKUP%" "%ENV_FILE%" >nul
+        del "%ENV_BACKUP%" >nul 2>&1
+    )
+)
+
+set "AUTO_UPDATED=1"
+set "FORCE_RESTART_BACKEND=1"
+echo   Cap nhat thanh cong.
+
+:AUTO_UPDATE_DONE
+echo.
 echo ========================================
 echo   HE THONG BAN HANG POS
 echo   Dang khoi dong, vui long doi...
@@ -83,6 +164,11 @@ powershell -NoProfile -Command "$p = Get-WmiObject Win32_Process -Filter \"Name=
 if not errorlevel 1 set "POS_RUNNING=1"
 
 if "%POS_RUNNING%"=="1" (
+    if "%FORCE_RESTART_BACKEND%"=="1" (
+        echo   Dang dung backend cu de chay ban moi...
+        call :STOP_POS_BACKEND
+        goto START_BACKEND
+    )
     echo   Da phat hien backend POS dang chay. Se mo lai giao dien...
     goto WAIT_SERVER
 )
@@ -100,6 +186,7 @@ if not errorlevel 1 (
 
 echo   Dang khoi dong may chu...
 
+:START_BACKEND
 REM Khoi dong backend an trong nen
 start "POS Backend" /min "%NODE_EXE%" "%BACKEND_APP%"
 
@@ -159,3 +246,17 @@ exit /b 0
 :CHECK_PORT
 powershell -NoProfile -Command "$client = New-Object System.Net.Sockets.TcpClient; try { $client.Connect('127.0.0.1', %1); exit 0 } catch { exit 1 } finally { $client.Dispose() }" >nul 2>&1
 exit /b %errorlevel%
+
+:HAS_INTERNET
+powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri 'https://github.com' -Method Head -TimeoutSec 5 -UseBasicParsing; if($r.StatusCode -ge 200 -and $r.StatusCode -lt 500){ exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
+exit /b %errorlevel%
+
+:STOP_POS_BACKEND
+for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq node.exe" /FO LIST ^| findstr "PID:"') do (
+    wmic process where "ProcessId=%%a" get CommandLine 2>nul | findstr /I "backend\src\app.js" >nul
+    if not errorlevel 1 (
+        taskkill /F /PID %%a >nul 2>&1
+    )
+)
+timeout /t 1 >nul
+exit /b 0
