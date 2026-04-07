@@ -136,6 +136,12 @@ if not exist "%BACKEND_APP%" (
     exit /b 1
 )
 
+set "BACKEND_DIR=%SCRIPT_DIR%backend"
+set "BACKEND_PACKAGE_JSON=%BACKEND_DIR%\package.json"
+set "NPM_CLI_JS=%SCRIPT_DIR%node\node_modules\npm\bin\npm-cli.js"
+
+if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs" >nul 2>&1
+
 REM Kiem tra file cau hinh
 if not exist "%SCRIPT_DIR%backend\.env" (
     echo   [CANH BAO] Thieu file cau hinh he thong!
@@ -157,6 +163,32 @@ for /f "tokens=1,2 delims==" %%a in ('findstr /B "PORT=" "%SCRIPT_DIR%backend\.e
     set "PORT=%%b"
 )
 if "%PORT%"=="" set "PORT=5000"
+
+REM Chi kiem tra/cai dependency khi VUA CAP NHAT PHIEN BAN MOI
+if "%AUTO_UPDATED%"=="1" (
+    set "DEPENDENCY_SYNC_REQUIRED=0"
+    if exist "%BACKEND_PACKAGE_JSON%" (
+        call :CHECK_BACKEND_DEPENDENCIES
+        if errorlevel 1 set "DEPENDENCY_SYNC_REQUIRED=1"
+    )
+
+    if "%DEPENDENCY_SYNC_REQUIRED%"=="1" (
+        echo.
+        echo   Dang dong bo thu vien backend (phat hien goi moi/thieu)...
+        call :INSTALL_BACKEND_DEPENDENCIES
+        if errorlevel 1 (
+            echo.
+            echo   [LOI] Khong the cap nhat thu vien backend!
+            echo   Vui long kiem tra internet hoac lien he ho tro ky thuat.
+            echo.
+            pause
+            exit /b 1
+        )
+        set "FORCE_RESTART_BACKEND=1"
+        echo   Dong bo thu vien thanh cong.
+        echo.
+    )
+)
 
 REM Kiem tra backend POS da chay chua
 set "POS_RUNNING=0"
@@ -260,3 +292,32 @@ for /f "tokens=2" %%a in ('tasklist /FI "IMAGENAME eq node.exe" /FO LIST ^| find
 )
 timeout /t 1 >nul
 exit /b 0
+
+:CHECK_BACKEND_DEPENDENCIES
+powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; $pkgPath = '%BACKEND_PACKAGE_JSON%'; $nmRoot = '%BACKEND_DIR%\node_modules'; if (!(Test-Path $pkgPath)) { exit 1 }; if (!(Test-Path $nmRoot)) { exit 1 }; $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json; $deps = @(); if ($pkg.dependencies) { $deps = $pkg.dependencies.PSObject.Properties.Name }; $missing = @(); foreach ($dep in $deps) { if ($dep -match '^@[^/]+/.+$') { $parts = $dep.Split('/'); $depPath = Join-Path (Join-Path $nmRoot $parts[0]) $parts[1] } else { $depPath = Join-Path $nmRoot $dep }; if (!(Test-Path $depPath)) { $missing += $dep } }; if ($missing.Count -gt 0) { Set-Content -Path '%SCRIPT_DIR%logs\missing-deps.log' -Value ($missing -join ', '); exit 1 } else { exit 0 }" >nul 2>&1
+exit /b %errorlevel%
+
+:INSTALL_BACKEND_DEPENDENCIES
+pushd "%BACKEND_DIR%"
+if exist "%NPM_CLI_JS%" (
+    "%NODE_EXE%" "%NPM_CLI_JS%" ci --omit=dev --no-audit --no-fund
+    set "INSTALL_CODE=%errorlevel%"
+    if not "%INSTALL_CODE%"=="0" (
+        "%NODE_EXE%" "%NPM_CLI_JS%" install --omit=dev --no-audit --no-fund
+        set "INSTALL_CODE=%errorlevel%"
+    )
+) else (
+    where npm >nul 2>&1
+    if errorlevel 1 (
+        set "INSTALL_CODE=1"
+    ) else (
+        npm ci --omit=dev --no-audit --no-fund
+        set "INSTALL_CODE=%errorlevel%"
+        if not "%INSTALL_CODE%"=="0" (
+            npm install --omit=dev --no-audit --no-fund
+            set "INSTALL_CODE=%errorlevel%"
+        )
+    )
+)
+popd
+exit /b %INSTALL_CODE%
