@@ -16,7 +16,7 @@ Thư mục này là gói chạy production cho máy khách. Mục tiêu là:
    cd pos-production
    ```
 
-3. Cấu hình database trong backend\.env
+3. Cấu hình database trong backend\.env 1
    - Mở file backend\.env
    - Điền đúng thông tin MySQL của máy khách
 
