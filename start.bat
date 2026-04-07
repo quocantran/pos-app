@@ -174,7 +174,7 @@ if "%AUTO_UPDATED%"=="1" (
 
     if "%DEPENDENCY_SYNC_REQUIRED%"=="1" (
         echo.
-        echo   Dang dong bo thu vien backend (phat hien goi moi/thieu)...
+        echo   Dang dong bo thu vien backend ^(phat hien goi moi/thieu^)...
         call :INSTALL_BACKEND_DEPENDENCIES
         if errorlevel 1 (
             echo.
