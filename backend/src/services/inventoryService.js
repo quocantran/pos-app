@@ -74,48 +74,94 @@ const generateSequentialBarcode = async (transaction = null) => {
 
 class InventoryService {
   async getAll(query = {}) {
-    const { search, status, page = 1, limit = 50 } = query;
+    const { search, status, page = 1, limit = 10 } = query;
 
     const where = {};
     const variantWhere = { is_active: true };
+    const parsedPage = Math.max(1, parseInt(page) || 1);
+    const parsedLimit = Math.max(1, parseInt(limit) || 10);
 
     if (search) {
-      variantWhere[Op.or] = [
-        { sku: { [Op.like]: `%${search}%` } },
-        { barcode: { [Op.like]: `%${search}%` } }
+      where[Op.or] = [
+        sequelize.where(sequelize.col('variant.sku'), { [Op.like]: `%${search}%` }),
+        sequelize.where(sequelize.col('variant.barcode'), { [Op.like]: `%${search}%` }),
+        sequelize.where(sequelize.col('variant->product.name'), { [Op.like]: `%${search}%` })
       ];
     }
 
-    const offset = (page - 1) * limit;
+    const statusWhere = (() => {
+      if (status === 'low') {
+        return {
+          [Op.and]: [
+            { quantity: { [Op.gt]: 0 } },
+            sequelize.where(sequelize.col('Inventory.quantity'), '<=', sequelize.col('Inventory.min_quantity'))
+          ]
+        };
+      }
+      if (status === 'out') {
+        return { quantity: 0 };
+      }
+      if (status === 'ok') {
+        return sequelize.where(sequelize.col('Inventory.quantity'), '>', sequelize.col('Inventory.min_quantity'));
+      }
+      return null;
+    })();
+
+    const mergeWhere = (baseWhere, extraWhere) => {
+      const isEmptyBase = !baseWhere || (
+        Object.keys(baseWhere).length === 0 && Object.getOwnPropertySymbols(baseWhere).length === 0
+      );
+      if (!extraWhere) return baseWhere;
+      if (isEmptyBase) return extraWhere;
+      return { [Op.and]: [baseWhere, extraWhere] };
+    };
+
+    const mainWhere = mergeWhere(where, statusWhere);
+    const offset = (parsedPage - 1) * parsedLimit;
+
+    const include = [{
+      model: Variant,
+      as: 'variant',
+      where: variantWhere,
+      include: [{
+        model: Product,
+        as: 'product',
+        where: { is_active: true },
+        attributes: ['id', 'name']
+      }]
+    }];
 
     let { count, rows } = await Inventory.findAndCountAll({
-      where,
-      include: [{
-        model: Variant,
-        as: 'variant',
-        where: variantWhere,
-        include: [{
-          model: Product,
-          as: 'product',
-          where: { is_active: true },
-          attributes: ['id', 'name']
-        }]
-      }],
+      where: mainWhere,
+      include,
       order: [['updated_at', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
-      distinct: true
+      limit: parsedLimit,
+      offset,
+      distinct: true,
+      subQuery: false
     });
 
-    // Filter by status if specified
-    if (status) {
-      rows = rows.filter(inv => {
-        if (status === 'low') return inv.quantity <= inv.min_quantity && inv.quantity > 0;
-        if (status === 'out') return inv.quantity === 0;
-        if (status === 'ok') return inv.quantity > inv.min_quantity;
-        return true;
-      });
-    }
+    const [totalCount, inStockCount, lowStockCount, outStockCount] = await Promise.all([
+      Inventory.count({ where, include, distinct: true, subQuery: false }),
+      Inventory.count({
+        where: mergeWhere(where, sequelize.where(sequelize.col('Inventory.quantity'), '>', sequelize.col('Inventory.min_quantity'))),
+        include,
+        distinct: true,
+        subQuery: false
+      }),
+      Inventory.count({
+        where: mergeWhere(where, {
+          [Op.and]: [
+            { quantity: { [Op.gt]: 0 } },
+            sequelize.where(sequelize.col('Inventory.quantity'), '<=', sequelize.col('Inventory.min_quantity'))
+          ]
+        }),
+        include,
+        distinct: true,
+        subQuery: false
+      }),
+      Inventory.count({ where: mergeWhere(where, { quantity: 0 }), include, distinct: true, subQuery: false })
+    ]);
 
     // Add status field
     rows = rows.map(inv => {
@@ -132,11 +178,17 @@ class InventoryService {
 
     return {
       data: rows,
+      summary: {
+        total: totalCount,
+        in_stock: inStockCount,
+        low_stock: lowStockCount,
+        out_of_stock: outStockCount
+      },
       pagination: {
         total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(count / limit)
+        page: parsedPage,
+        limit: parsedLimit,
+        totalPages: Math.ceil(count / parsedLimit)
       }
     };
   }

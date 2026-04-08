@@ -222,13 +222,23 @@ class ProductService {
   }
 
   async getAll(query = {}) {
-    const { search, category_id, is_active, page = 1, limit = 20 } = query;
+    const { search, category_id, is_active, page = 1 } = query;
     const isAllStatuses = String(is_active || '').toLowerCase() === 'all';
+    const parsedPage = Math.max(parseInt(page, 10) || 1, 1);
+    const parsedLimit = 10;
 
     const where = {};
 
-    if (search) {
-      where.name = { [Op.like]: `%${search}%` };
+    if (search && String(search).trim()) {
+      const keyword = `%${String(search).trim()}%`;
+      const escapedKeyword = sequelize.escape(keyword);
+
+      where[Op.or] = [
+        { name: { [Op.like]: keyword } },
+        sequelize.literal(
+          `EXISTS (SELECT 1 FROM variants AS v WHERE v.product_id = \`Product\`.\`id\` AND v.is_active = 1 AND v.barcode LIKE ${escapedKeyword})`
+        )
+      ];
     }
 
     if (category_id) {
@@ -239,7 +249,7 @@ class ProductService {
       where.is_active = is_active !== undefined ? is_active === 'true' : true;
     }
 
-    const offset = (page - 1) * limit;
+    const offset = (parsedPage - 1) * parsedLimit;
 
     const { count, rows } = await Product.findAndCountAll({
       where,
@@ -256,8 +266,8 @@ class ProductService {
         }
       ],
       order: [['created_at', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: parsedLimit,
+      offset,
       distinct: true
     });
 
@@ -289,9 +299,9 @@ class ProductService {
       data: enrichedRows,
       pagination: {
         total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(count / limit)
+        page: parsedPage,
+        limit: parsedLimit,
+        totalPages: Math.ceil(count / parsedLimit)
       }
     };
   }
@@ -377,10 +387,14 @@ class ProductService {
             is_active: variantData.is_active !== false
           }, { transaction });
 
+          const sanitizedQuantity = Math.max(0, Number.isFinite(Number(variantData.quantity))
+            ? Number(variantData.quantity)
+            : 0);
+
           // Create inventory record - default quantity is 0
           await Inventory.create({
             variant_id: variant.id,
-            quantity: Number(variantData.quantity || 0),
+            quantity: sanitizedQuantity,
             min_quantity: variantData.min_quantity || 10
           }, { transaction });
         }
@@ -454,6 +468,28 @@ class ProductService {
               cost_price: Number(variantData.cost_price),
               is_active: true
             }, { transaction });
+
+            const inventory = await Inventory.findOne({
+              where: { variant_id: existingVariant.id },
+              transaction
+            });
+
+            const hasQuantityInPayload = variantData.quantity !== undefined && variantData.quantity !== null;
+            if (hasQuantityInPayload) {
+              const sanitizedQuantity = Math.max(0, Number.isFinite(Number(variantData.quantity))
+                ? Number(variantData.quantity)
+                : 0);
+
+              if (inventory) {
+                await inventory.update({ quantity: sanitizedQuantity }, { transaction });
+              } else {
+                await Inventory.create({
+                  variant_id: existingVariant.id,
+                  quantity: sanitizedQuantity,
+                  min_quantity: 10
+                }, { transaction });
+              }
+            }
           } else {
             // New variant - auto-generate SKU
             const sku = variantData.sku && String(variantData.sku).trim()
@@ -492,9 +528,13 @@ class ProductService {
               is_active: variantData.is_active !== false
             }, { transaction });
 
+            const sanitizedQuantity = Math.max(0, Number.isFinite(Number(variantData.quantity))
+              ? Number(variantData.quantity)
+              : 0);
+
             await Inventory.create({
               variant_id: newVariant.id,
-              quantity: Number(variantData.quantity || 0),
+              quantity: sanitizedQuantity,
               min_quantity: variantData.min_quantity || 10
             }, { transaction });
 
