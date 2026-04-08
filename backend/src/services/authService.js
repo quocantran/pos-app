@@ -8,7 +8,7 @@ class AuthService {
     const user = await User.findOne({ where: { username } });
 
     if (!user) {
-      throw { status: 401, message: 'Invalid username or password' };
+      throw { status: 401, message: 'Tài khoản hoặc mật khẩu không đúng!' };
     }
 
     if (!user.is_active) {
@@ -18,7 +18,7 @@ class AuthService {
     const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
-      throw { status: 401, message: 'Invalid username or password' };
+      throw { status: 401, message: 'Tài khoản hoặc mật khẩu không đúng!' };
     }
 
     const token = jwt.sign(
